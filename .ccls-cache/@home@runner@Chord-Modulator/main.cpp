@@ -27,8 +27,11 @@ int main() {
                          "| B7  | E7    | A7  | D#7   |",
                          "",
                          "| G7  | C7    | F7 "};
+  cout << "Initial Tabs:\n";
   printTabs(tabs);
   modulateTabs(tabs, 7); // Modulate tabs by 7 overtones
+
+  cout << "Modulated Tabs:\n";
   printTabs(tabs);
   
 }
