@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <iostream>
 #include <map>
 #include <string>
@@ -15,65 +16,68 @@ vector<string> modulateTabs(const vector<string> &tabs, int semitones);
 void printTabs(const vector<string> &tabs);
 
 int main() {
-  vector<string> tabs = {"| B   | E7    | B   | E7    |",
-                         "| A7  | D#7   | G#7 | C#7   |",
-                         "| F#7 | B     | F#7 | B     |",
+  vector<string> tabs = {"| D   | Cadd9 | G   | G   |",
+                         "| D   | Cadd9 | G   | G   |",
+                         "| D   | Cadd9 | G   | G   |",
+                         "| D   | Cadd9 | G   | G   |",
                          "",
-                         "| E7  | %     | E7  | %     |",
-                         "| B   | %     | B   | %     |",
-                         "| G#7 | C#7   | F#7 | B     |",
-                         "| F7  | Bb7   | Eb7 | Ab7   |",
-                         "| D7  | G7    | C7  | F7    |",
-                         "| B7  | E7    | A7  | D#7   |",
+                         "| D   | Cadd9 | G   | G   |",
+                         "| D   | Cadd9 | G   | G   |",
+                         "| F   | C     | D   | Cadd9 | G |",
+                         "| D   | Cadd9 | G   | G   |",
+                         "| D   | Cadd9 | G   | G   |",
+                         "| D   | Cadd9 | G   | G   |",
                          "",
-                         "| G7  | C7    | F7 "};
-  cout << "Initial Tabs:\n";
-  printTabs(tabs);
-  modulateTabs(tabs, 7); // Modulate tabs by 7 overtones
+                         "| D   | Cadd9 | G   |"};
 
-  cout << "Modulated Tabs:\n";
+  cout << "Initial Chords:\n";
   printTabs(tabs);
-  
+  vector<string> m_tabs = modulateTabs(tabs, 7); // Modulate tabs by 7 overtones
+
+  cout << "\nModulated Tabs:\n";
+  printTabs(m_tabs);
 }
 
 // Function to modulate the given chord to a new key
 string modulateChord(string chord, int semitones) {
-  static const map<string, int> noteToInt{
+  static const std::map<std::string, int> noteToInt{
       {"A", 0},  {"A#", 1}, {"Bb", 1}, {"B", 2},   {"C", 3},  {"C#", 4},
       {"Db", 4}, {"D", 5},  {"D#", 6}, {"Eb", 6},  {"E", 7},  {"F", 8},
       {"F#", 9}, {"Gb", 9}, {"G", 10}, {"G#", 11}, {"Ab", 11}};
 
-  // Extract the root note without modifiers
-  string rootNote = chord.substr(0, 1);
-
-  int root = noteToInt.at(rootNote);
-
-  // Apply any '#' or 'b' modifiers to the root note
-  for (int i = 1; i < chord.size(); ++i) {
-    if (chord[i] == '#') {
-      root++;
-    } else if (chord[i] == 'b') {
-      root--;
-    }
+  // Extract the root note including sharps and flats
+  string rootNote;
+  if (chord[1] == '#' || chord[1] == 'b') {
+    rootNote = chord.substr(0, 2); // Include the accidental
+  } else {
+    rootNote = chord.substr(0, 1); // Just the note
   }
 
-  // Normalize the root value to [0, 11]
+  // Find the numeric value of the root note
+  int root = noteToInt.at(rootNote);
+
+  // Apply the semitone modulation
   root = (root + semitones + 12) % 12;
 
-  // Find the new root note
+  // Find the new root note after modulation
   string newRootNote;
   for (const auto &kv : noteToInt) {
     if (kv.second == root) {
-      newRootNote = kv.first;
-      break;
+      if (kv.first.length() == rootNote.length()) { // Match sharp/flat status
+        newRootNote = kv.first;
+        break;
+      } else if (rootNote.length() == 1 &&
+                 kv.first[1] != '#') { // Prefer natural notes
+        newRootNote = kv.first;
+      }
     }
   }
 
-  // Reconstruct the new chord with the new root note
+  // Reconstruct the new chord with the modulated root note
   string newChord = newRootNote;
-
-  if (chord.size() > 1) {
-    newChord += chord.substr(1);
+  // Append the rest of the chord if there is any
+  if (rootNote.length() < chord.length()) {
+    newChord += chord.substr(rootNote.length());
   }
 
   return newChord;
@@ -84,27 +88,40 @@ vector<string> modulateTabs(const vector<string> &tabs, int semitones) {
   vector<string> newTabs;
   for (const string &tab : tabs) {
     string newTab;
-    for (size_t i = 0; i < tab.size(); i++) {
-      if (isdigit(tab[i])) {
-        newTab += tab[i];
-      } else if (isalpha(tab[i])) {
-        string chord;
-        while (i < tab.size() && isalpha(tab[i])) {
-          chord += tab[i++];
+    size_t i = 0;
+    while (i < tab.size()) {
+      if (isdigit(tab[i]) || tab[i] == '|') {
+        // Directly add numbers and divider characters to the new tab
+        newTab += tab[i++];
+      } else if (isalpha(tab[i]) || tab[i] == '#' || tab[i] == 'b') {
+        // Start of a chord
+        size_t start = i;
+        while (i < tab.size() && (isalpha(tab[i]) || tab[i] == '#' || tab[i] == 'b')) {
+          // Increment i to capture the full root note including accidentals
+          i++;
         }
-        i--;
-        newTab += modulateChord(chord, semitones);
+        string rootNote = tab.substr(start, i - start);
+        string extension = "";
+
+        // Capture additional chord characters like 'add9', 'm7', 'sus4', etc.
+        while (i < tab.size() && tab[i] != '|' && tab[i] != ' ') {
+          extension += tab[i++];
+        }
+
+        // Modulate the root note and then append the extension
+        newTab += modulateChord(rootNote, semitones) + extension;
       } else {
-        newTab += tab[i];
+        // Anything else, just add to the new tab
+        newTab += tab[i++];
       }
     }
-    newTabs.push_back(newTab);
+    newTabs.push_back(newTab); // Add the newly created tab to the vector
   }
   return newTabs;
 }
 
 void printTabs(const vector<string> &tabs) {
-  for (auto& tab : tabs) {
+  for (auto &tab : tabs) {
     cout << tab << endl;
   }
 }
